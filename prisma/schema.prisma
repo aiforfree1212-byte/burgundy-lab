@@ -1,0 +1,112 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String   // مشفر بـ bcrypt
+  role      String   @default("admin") // admin, superadmin
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Category {
+  id     String    @id @default(cuid())
+  name   String    // الاسم بالعربي
+  nameEn String?   // الاسم بالإنجليزي
+  icon   String?   // اسم الأيقونة من Lucide
+  order  Int       @default(0)
+  products Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  price       Float   // السعر بالريال
+  imageKey    String?  // مفتاح الصورة في MinIO
+  isAvailable Boolean  @default(true)
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  orderItems  OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Banner {
+  id              String   @id @default(cuid())
+  title           String
+  imageKeyDesktop String?  // مفتاح صورة الديسكتوب في MinIO
+  imageKeyMobile  String?  // مفتاح صورة الجوال في MinIO
+  link            String?  // رابط عند الضغط
+  isActive        Boolean  @default(true)
+  startDate       DateTime?
+  endDate         DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// نموذج العميل - محمي بـ PDPL
+// ملاحظة هامة: حقل phone و address يجب تشفيرهما برمجياً (AES-256) عند الحفظ
+// وفك التشفير عند العرض في لوحة الإدارة فقط
+model Customer {
+  id           String   @id @default(cuid())
+  name         String
+  phone        String   // مشفر بـ AES-256 - PDPL
+  address      String   // مشفر بـ AES-256 - PDPL
+  consentGiven Boolean  // الموافقة على سياسة الخصوصية
+  consentDate  DateTime? // تاريخ الموافقة
+  orders       Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Order {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  status     String   @default("NEW") // NEW, PREPARING, READY, DELIVERED, CANCELED
+  total      Float
+  notes      String?
+  items      OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity  Int
+  price     Float   // سعر المنتج وقت الطلب
+
+  createdAt DateTime @default(now())
+}
+
+// سجل المراجعة - Audit Log (PDPL)
+// يتم تسجيل كل وصول لبيانات عميل حساسة
+model AuditLog {
+  id        String   @id @default(cuid())
+  adminId   String
+  action    String   // وصف الإجراء مثل: "عرض بيانات عميل - فك تشفير"
+  details   String?  // تفاصيل إضافية
+  createdAt DateTime @default(now())
+}
